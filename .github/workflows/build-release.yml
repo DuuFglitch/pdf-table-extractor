@@ -1,0 +1,55 @@
+name: Build e Release Multi-Arquitetura
+
+# Dispara o workflow quando uma nova tag (ex: v1.0, v2.0.3) é criada
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build_windows:
+    name: Build para Windows (${{ matrix.arch }})
+    runs-on: windows-latest # Sempre usa a VM mais recente do Windows (que é 64-bit)
+
+    strategy:
+      matrix:
+        # Define a matriz de build: queremos Python 3.10 32-bit e 64-bit
+        # Ajuste a versão do Python conforme seu projeto
+        python-version: ['3.10'] 
+        architecture: ['x86', 'x64'] # x86 = 32-bit, x64 = 64-bit
+
+    steps:
+      - name: 1. Obter o código-fonte (Checkout)
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar o Python ${{ matrix.python-version }} (${{ matrix.architecture }})
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: ${{ matrix.architecture }} # A mágica acontece aqui!
+
+      - name: 3. Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller # Ou qualquer outra ferramenta de build
+
+      - name: 4. Rodar o Build (Ex: PyInstaller)
+        # Ajuste este comando para o seu projeto
+        # Usamos $env:GITHUB_REF_NAME para pegar o nome da tag (ex: v1.0.1)
+        run: |
+          pyinstaller --onefile --windowed --name "MeuPrograma-${{ matrix.architecture }}" seu_script_principal.py
+
+      - name: 5. Compactar o executável (ZIP)
+        # O Windows vem com 'tar' que pode criar .zip
+        # O executável estará na pasta 'dist'
+        run: |
+          tar -a -c -f MeuPrograma-${{ $env:GITHUB_REF_NAME }}-${{ matrix.architecture }}.zip ./dist/MeuPrograma-${{ matrix.architecture }}.exe
+        shell: pwsh # Usar PowerShell para este comando
+
+      - name: 6. Fazer Upload para a Release do GitHub
+        uses: softprops/action-gh-release@v1
+        with:
+          # Anexa os arquivos .zip à release que disparou este workflow
+          files: |
+            MeuPrograma-${{ $env:GITHUB_REF_NAME }}-${{ matrix.architecture }}.zip
